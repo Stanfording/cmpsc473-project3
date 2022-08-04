@@ -34,22 +34,32 @@ enum buffer_status buffer_send(state_t *buffer, void* data)
     
 
     //lock
-    //While it is not full, 
-    //wait
+    pthread_mutex_lock(&buffer->chmutex);
+    //While the buffer is full,
+    while (fifo_avail_size(buffer->fifoQ) == 0){
+        //wait
+        pthread_cond_wait(&buffer->chconsend, &buffer->chmutex); //wait untill it ok to send (more room).
+                                                                //but breaks out the loop only.
+                                                                //when there is enough to room to send.
+    }
+
+    
 
     //add
-    //signal no longer empty
-    //unlock
-    //return
-    if(fifo_avail_size(buffer->fifoQ) > msg_size )
+    if(fifo_avail_size(buffer->fifoQ) > msg_size)
     {
-	buffer_add_Q(buffer,data);
+	    buffer_add_Q(buffer,data);
+
+        //signal no longer empty
+        pthread_cond_signal(&buffer->chconrec); //now it is ok to try receive
         //unlock close
+        pthread_mutex_unlock(&buffer->chmutex);
         pthread_mutex_unlock(&buffer->chclose);
     	return BUFFER_SUCCESS;	
     }
     else {
         //unlock close
+        pthread_mutex_unlock(&buffer->chmutex);
         pthread_mutex_unlock(&buffer->chclose);
         return BUFFER_ERROR;
     }
@@ -73,22 +83,37 @@ enum buffer_status buffer_receive(state_t* buffer, void** data)
         pthread_mutex_unlock(&buffer->chclose);
         return CLOSED_ERROR;
     }
+
+    //lock
+    pthread_mutex_lock(&buffer->chmutex);
+
+    while (fifo_used_size(buffer->fifoQ) == 0){
+        pthread_cond_wait(&buffer->chconrec, &buffer->chmutex);//wait untill it ok to receive (more room added).
+                                                                //but breaks out the loop only.
+                                                                //when there is enough to room to send.
+    
+    }
     
     if(buffer->fifoQ->avilSize < buffer->fifoQ->size)  // checking if there is something in the Q to remove
     {
     	buffer_remove_Q(buffer,data);
+        pthread_cond_signal(&buffer->chconsend); //now it is ok to try receive
+
     	if(strcmp(*(char**)(data),"splmsg") ==0)
     	{
             //unlock close
+            pthread_mutex_unlock(&buffer->chmutex);
             pthread_mutex_unlock(&buffer->chclose);
         	return BUFFER_SPECIAL_MESSSAGE;
     	}
         //unlock close
+        pthread_mutex_unlock(&buffer->chmutex);
         pthread_mutex_unlock(&buffer->chclose);
     	return BUFFER_SUCCESS;
     }
     else {
         //unlock close
+        pthread_mutex_unlock(&buffer->chmutex);
         pthread_mutex_unlock(&buffer->chclose);
         return BUFFER_ERROR;
     }
