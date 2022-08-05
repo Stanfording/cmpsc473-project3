@@ -337,11 +337,13 @@ char* test_channel_close_with_receive() {
 
     // Close channel to stop the rest of the receive threads
     mu_assert("test_channel_close_with_receive: Testing channel return failed",buffer_close(BUF) == BUFFER_SUCCESS);
-
+    
+    //printf("Is for loop the problem?\n\n"); //fix
     // XXX: All calls should immediately after close else close implementation is incorrect.
     for (size_t i = 0; i < RECEIVE_THREAD; i++) {
         pthread_join(rec_pid[i], NULL); 
     }
+    //printf("No it's not!\n\n"); //fix
 
     size_t count = 0;
     for (size_t i = 0; i < RECEIVE_THREAD; i++) {
@@ -382,27 +384,27 @@ char* test_channel_close_with_send() {
     sem_t send_done;
     sem_init(&send_done, 0, 0);
     char* data1 = "Message";
-    printf("is initialization the problem?.\n"); //fix
+    //printf("is initialization the problem?.\n"); //fix
     for (size_t i = 0; i < SEND_THREAD; i++) {
         data_send[i].done = &send_done;
         data_send[i].data = data1;
         data_send[i].out = BUFFER_ERROR;;
         pthread_create(&send_pid[i], NULL, (void *)direct_send, &data_send[i]);  
     }
-    printf("is lock the problem?.\n"); //fix
+    //printf("is lock the problem?.\n"); //fix
     for (size_t i = 0; i < 2; i++) {
         sem_wait(&send_done);
     }
     mu_assert("test_channel_close_with_send: Testing channel return failed", buffer_close(BUF) == BUFFER_SUCCESS);
     
-    printf("The for loop can be the problem.\n"); //fix
+    //printf("The for loop can be the problem.\n"); //fix
     // XXX: All the threads should return in finite amount of time else it will be in infinite loop. Hence incorrect implementation
     
     for (size_t i = 0; i < SEND_THREAD; i++) {
         pthread_join(send_pid[i], NULL);    
     }
 
-    printf("The for loop is not the problem.\n"); //fix
+    //printf("The for loop is not the problem.\n"); //fix
     size_t count = 0;
     for (size_t i = 0; i < SEND_THREAD; i++) {
         if (data_send[i].out == CLOSED_ERROR) {
@@ -976,7 +978,7 @@ void Reducer()
     void* rooteduce = 0;
     while( buffer_receive(BUF, &out) ==1 )
     {  
-        //printf("received output is %s\n", (char*)out);
+        printf("received output is %s\n", (char*)out);
         char * key = strtok(out," ");
         char* val = (strtok(NULL," "));
         int value;
