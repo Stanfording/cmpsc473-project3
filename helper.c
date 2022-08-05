@@ -21,29 +21,39 @@ state_t* buffer_create(int capacity)
 // BUFFER_ERROR on encountering any other generic error of any sort
 enum buffer_status buffer_send(state_t *buffer, void* data)
 {
-    
+    int msg_size = get_msg_size(data);
     //Lock for close
     pthread_mutex_lock(&buffer->chclose);
-    int msg_size = get_msg_size(data);
+    
     if(!buffer->isopen)
     {
         //unlock close
         pthread_mutex_unlock(&buffer->chclose);
         return CLOSED_ERROR;
     }
-    
+    pthread_mutex_unlock(&buffer->chclose);
 
     //lock
-    pthread_mutex_lock(&buffer->chmutex);
+    
+    pthread_mutex_lock(&(buffer->chmutex));
     //While the buffer is full,
-    while (fifo_avail_size(buffer->fifoQ) == 0){
-        //wait
-        pthread_cond_wait(&buffer->chconsend, &buffer->chmutex); //wait untill it ok to send (more room).
+    while (!(fifo_avail_size(buffer->fifoQ) > msg_size) && buffer->isopen) {
+
+        
+        pthread_cond_wait(&(buffer->chconsend), &(buffer->chmutex)); 
+
+                                                                //wait untill it ok to send (more room).
                                                                 //but breaks out the loop only.
                                                                 //when there is enough to room to send.
+
     }
 
-    
+    if(!buffer->isopen)
+    {
+        //unlock close
+        pthread_mutex_unlock(&(buffer->chmutex));
+        return CLOSED_ERROR;
+    }
 
     //add
     if(fifo_avail_size(buffer->fifoQ) > msg_size)
@@ -51,19 +61,18 @@ enum buffer_status buffer_send(state_t *buffer, void* data)
 	    buffer_add_Q(buffer,data);
 
         //signal no longer empty
-        pthread_cond_signal(&buffer->chconrec); //now it is ok to try receive
+        pthread_cond_signal(&(buffer->chconrec)); //now it is ok to try receive
         //unlock close
-        pthread_mutex_unlock(&buffer->chmutex);
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chmutex));
     	return BUFFER_SUCCESS;	
     }
     else {
         //unlock close
-        pthread_mutex_unlock(&buffer->chmutex);
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chmutex));
         return BUFFER_ERROR;
     }
 }
+
 // test_send_correctness 1
 // Reads data from the given buffer and stores it in the function’s input parameter, data (Note that it is a double pointer).
 // This is a blocking call i.e., the function only returns on a successful completion of receive
@@ -76,45 +85,55 @@ enum buffer_status buffer_send(state_t *buffer, void* data)
 enum buffer_status buffer_receive(state_t* buffer, void** data)
 {
     //lock close
-    pthread_mutex_lock(&buffer->chclose);
+    pthread_mutex_lock(&(buffer->chclose));
+    //printf("in the receive chclose lock\n"); //fix
     if(!buffer->isopen)
     {
         //unlock close
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chclose));
+        return CLOSED_ERROR;
+    }
+    pthread_mutex_unlock(&(buffer->chclose));
+
+    //lock
+    pthread_mutex_lock(&(buffer->chmutex));
+    //printf("in the receive chmutex lock\n"); //fix
+
+    while (!(buffer->fifoQ->avilSize < buffer->fifoQ->size)){
+        
+        pthread_cond_wait(&(buffer->chconrec), &(buffer->chmutex));//wait untill it ok to receive (more room added).
+                                                                //but breaks out the loop only.
+                                                                //when there is enough to room to send.
+
+    }
+    //printf("out of the while loop\n"); //fix
+
+    if(!buffer->isopen)
+    {
+        //unlock close
+        pthread_mutex_lock(&(buffer->chmutex));
         return CLOSED_ERROR;
     }
 
-    //lock
-    pthread_mutex_lock(&buffer->chmutex);
-
-    while (fifo_used_size(buffer->fifoQ) == 0){
-        pthread_cond_wait(&buffer->chconrec, &buffer->chmutex);//wait untill it ok to receive (more room added).
-                                                                //but breaks out the loop only.
-                                                                //when there is enough to room to send.
-    
-    }
-    
     if(buffer->fifoQ->avilSize < buffer->fifoQ->size)  // checking if there is something in the Q to remove
     {
+        //printf("about to remove data in buffer\n"); //fix
     	buffer_remove_Q(buffer,data);
-        pthread_cond_signal(&buffer->chconsend); //now it is ok to try receive
+        pthread_cond_signal(&(buffer->chconsend)); //now it is ok to try receive
 
     	if(strcmp(*(char**)(data),"splmsg") ==0)
     	{
             //unlock close
-            pthread_mutex_unlock(&buffer->chmutex);
-            pthread_mutex_unlock(&buffer->chclose);
+            pthread_mutex_unlock(&(buffer->chmutex));
         	return BUFFER_SPECIAL_MESSSAGE;
     	}
         //unlock close
-        pthread_mutex_unlock(&buffer->chmutex);
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chmutex));
     	return BUFFER_SUCCESS;
     }
     else {
         //unlock close
-        pthread_mutex_unlock(&buffer->chmutex);
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chmutex));
         return BUFFER_ERROR;
     }
     
@@ -129,16 +148,19 @@ enum buffer_status buffer_receive(state_t* buffer, void** data)
 enum buffer_status buffer_close(state_t* buffer)
 {
     //lock close
-    pthread_mutex_lock(&buffer->chclose);
+    pthread_mutex_lock(&(buffer->chclose));
+    pthread_mutex_lock(&(buffer->chmutex));
     if(!buffer->isopen)
     {
         //unlock close
-        pthread_mutex_unlock(&buffer->chclose);
+        pthread_mutex_unlock(&(buffer->chmutex));
+        pthread_mutex_unlock(&(buffer->chclose));
         return CLOSED_ERROR;
     }
     buffer->isopen = false;
     //unlock close
-    pthread_mutex_unlock(&buffer->chclose);
+    pthread_mutex_unlock(&(buffer->chmutex));
+    pthread_mutex_unlock(&(buffer->chclose));
     return BUFFER_SUCCESS;
     
 }

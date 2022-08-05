@@ -152,14 +152,21 @@ char * test_send_correctness() { // test_send_correctness
     mu_assert("test_send_correctness: Testing channel value failed", string_equal(out,"CMPSC"));
     mu_assert("test_send_correctness: Testing channel size failed" ,fifo_used_size(BUF->fifoQ)==18);
     mu_assert("test_send_correctness: Testing channel return failed", new_args2.out == BUFFER_ERROR);
-
+    //printf("new_args2.out %d\n", (int)new_args2.out);//fix
+    //printf("wait 1\n");//fix
     buffer_receive(BUF, &out);
+    //printf("receive 1 done\n");//fix
     for (size_t i = 0; i < 3; i++) {
         pthread_join(pid[i], NULL);
     }
+    
+    //printf("wait 2\n");//fix
+    buffer_receive(BUF, &out);
+    //printf("receive 2 done\n");//fix
 
+    //printf("wait 3\n");//fix
     buffer_receive(BUF, &out);
-    buffer_receive(BUF, &out);
+    //printf("receive 3 done\n");//fix
 
     free(out);
     buffer_close(BUF);
@@ -375,23 +382,27 @@ char* test_channel_close_with_send() {
     sem_t send_done;
     sem_init(&send_done, 0, 0);
     char* data1 = "Message";
+    printf("is initialization the problem?.\n"); //fix
     for (size_t i = 0; i < SEND_THREAD; i++) {
         data_send[i].done = &send_done;
         data_send[i].data = data1;
         data_send[i].out = BUFFER_ERROR;;
         pthread_create(&send_pid[i], NULL, (void *)direct_send, &data_send[i]);  
     }
-    
+    printf("is lock the problem?.\n"); //fix
     for (size_t i = 0; i < 2; i++) {
         sem_wait(&send_done);
     }
     mu_assert("test_channel_close_with_send: Testing channel return failed", buffer_close(BUF) == BUFFER_SUCCESS);
-
+    
+    printf("The for loop can be the problem.\n"); //fix
     // XXX: All the threads should return in finite amount of time else it will be in infinite loop. Hence incorrect implementation
+    
     for (size_t i = 0; i < SEND_THREAD; i++) {
         pthread_join(send_pid[i], NULL);    
     }
-    
+
+    printf("The for loop is not the problem.\n"); //fix
     size_t count = 0;
     for (size_t i = 0; i < SEND_THREAD; i++) {
         if (data_send[i].out == CLOSED_ERROR) {
