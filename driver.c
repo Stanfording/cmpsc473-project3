@@ -978,7 +978,7 @@ void Reducer()
     void* rooteduce = 0;
     while( buffer_receive(BUF, &out) ==1 )
     {  
-        printf("received output is %s\n", (char*)out);
+        //printf("received output is %s\n", (char*)out);
         char * key = strtok(out," ");
         char* val = (strtok(NULL," "));
         int value;
