@@ -1,4 +1,4 @@
-[Yang Yu] , [yby5142@psu.edu]
+Yang Yu, yby5142@psu.edu
 
 
 
